@@ -10,13 +10,12 @@ CORS(app)  # 🛡️ 플러터 앱 통신 개방
 # 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
 # 매번 새로 연결하는 것이 아니라, 거대한 연결 저장소를 만들어 동시 다발적 요청을 격리 처리합니다.
 db_config = {
-    "host": 'localhost',
-    "user": 'root',
-    "password": 'Ksh2006@',     # 조율자님의 마스터 비밀번호 반영
-    "database": 'anacave_db',
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", "Ksh2006@"),  # 환경 변수가 없으면 로컬 비밀번호 사용
+    "database": os.environ.get("DB_NAME", "anacave_db"),
     "charset": 'utf8mb4'
 }
-
 try:
     db_pool = pooling.MySQLConnectionPool(
         pool_name="anacave_pool",
