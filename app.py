@@ -141,6 +141,10 @@ def submit_post():
             connection.close()
 
 if __name__ == '__main__':
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"⚠️ [인프라 구동 경고] 초기 DB 연결에 실패했으나, 서버 기동을 강제 유지합니다: {e}")
+        
     # ⚠️ 대규모 배포 모드로 갈 때는 debug=False로 두고, WSGI 컨테이너(Gunicorn 등)로 감싸 기동하게 됩니다.
     app.run(host='0.0.0.0', port=5119, debug=False, threaded=True)
