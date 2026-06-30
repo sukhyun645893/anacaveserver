@@ -8,7 +8,6 @@ app = Flask(__name__)
 CORS(app)  # 🛡️ 플러터 앱 통신 개방
 
 # 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
-# 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
 db_config = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "port": int(os.environ.get("DB_PORT", 3306)),
@@ -18,9 +17,10 @@ db_config = {
     "charset": 'utf8mb4'
 }
 
+# ⚡ [수정 구간] Aiven 클라우드 환경일 때, 공식 mysql.connector 규격에 맞게 SSL 질서를 주입합니다.
 if db_config["host"] != "localhost":
-    db_config["ssl"] = {"ssl_mode": "REQUIRED"}
-    
+    db_config["ssl_disabled"] = False  # SSL 비활성화를 거짓으로 두어 보안 통신을 강제 가동합니다.
+
 db_pool = None
 
 # 🔄 풀(Pool) 생성 로직을 안전하게 격리
