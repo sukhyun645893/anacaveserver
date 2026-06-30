@@ -8,14 +8,15 @@ app = Flask(__name__)
 CORS(app)  # 🛡️ 플러터 앱 통신 개방
 
 # 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
+# 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
 db_config = {
     "host": os.environ.get("DB_HOST", "localhost"),
+    "port": int(os.environ.get("DB_PORT", 3306)),  # ⚡ Aiven 클라우드 고유 포트를 동적으로 흡수하도록 엔진 장착!
     "user": os.environ.get("DB_USER", "root"),
-    "password": os.environ.get("DB_PASSWORD", "Ksh2006@"),  # 환경 변수가 없으면 로컬 비밀번호 사용
+    "password": os.environ.get("DB_PASSWORD", "Ksh2006@"),  
     "database": os.environ.get("DB_NAME", "anacave_db"),
     "charset": 'utf8mb4'
 }
-
 db_pool = None
 
 # 🔄 풀(Pool) 생성 로직을 안전하게 격리
