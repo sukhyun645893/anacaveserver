@@ -8,7 +8,6 @@ app = Flask(__name__)
 CORS(app)  # 🛡️ 플러터 앱 통신 개방
 
 # 🐬 MySQL 커넥션 풀(Connection Pool) 환경 구성
-# 매번 새로 연결하는 것이 아니라, 거대한 연결 저장소를 만들어 동시 다발적 요청을 격리 처리합니다.
 db_config = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "user": os.environ.get("DB_USER", "root"),
@@ -16,6 +15,10 @@ db_config = {
     "database": os.environ.get("DB_NAME", "anacave_db"),
     "charset": 'utf8mb4'
 }
+
+db_pool = None
+
+# 🔄 풀(Pool) 생성 로직을 안전하게 격리
 try:
     db_pool = pooling.MySQLConnectionPool(
         pool_name="anacave_pool",
@@ -25,31 +28,36 @@ try:
     )
     print("✅ [MySQL Pool] 대규모 트래픽 대응 커넥션 풀 완공 완료.")
 except Exception as e:
-    print(f"❌ [MySQL Pool 초기화 실패]: {e}")
-    raise e
+    # ⚠️ Render 빌드용 임시 방어선: DB가 없어도 프로세스가 다운되지 않도록 경고만 출력
+    print(f"⚠️ [MySQL Pool 초기화 실패 - 임시 우회]: {e}")
 
 
 def get_db_connection():
-    # 🔄 풀(Pool)에서 이미 준비된 대기열 연결을 광속으로 가로채 반환합니다.
+    # 🔄 풀이 없으면 예외를 던져 런타임 에러로 처리 (서버 다운 방지)
+    if not db_pool:
+        raise Exception("현재 데이터베이스 서버와 연결되어 있지 않습니다.")
     return db_pool.get_connection()
 
 
 def init_db():
+    if not db_pool:
+        print("⚠️ [init_db] DB Pool이 구성되지 않아 테이블 검증을 스킵합니다.")
+        return
+
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
 
         # 🎭 유저 테이블 및 인덱스 정착
-        # 대규모 조회 성능 향상을 위해 갤러리 검색 조건인 chaptername에 INDEX를 부여합니다.
         c.execute('''
         CREATE TABLE IF NOT EXISTS posts (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(255),
-            password VARCHAR(255),
-            chaptername VARCHAR(255),
-            title VARCHAR(255),
-            content TEXT,
+            username VARCHAR(255) NULL,
+            password VARCHAR(255) NULL,
+            chaptername VARCHAR(255) NULL,
+            title VARCHAR(255) NULL,
+            content TEXT NULL,
             INDEX idx_chaptername (chaptername)  -- ⚡ 대규모 조회 성능 향상을 위한 인덱스 질서 부여
         )
         ''')
@@ -59,7 +67,7 @@ def init_db():
         print(f"❌ [DB 초기화 에러]: {e}")
     finally:
         if conn:
-            conn.close()  # 실제 연결을 파괴하지 않고 Pool로 안전하게 반환합니다.
+            conn.close()
 
 
 @app.route('/post', methods=['POST'])
@@ -73,7 +81,6 @@ def receive_post():
     title = data.get('title', '')
     chaptername = data.get('chaptername', '')
     
-    # NULL 값 튕김 방지를 위한 프론트엔드 데이터 보정 장치
     username = data.get('username', '익명')
     password = data.get('password', '')
 
@@ -82,7 +89,6 @@ def receive_post():
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # username과 password도 안전하게 적립될 수 있도록 수식 확장
         sql = "INSERT INTO posts (username, password, chaptername, title, content) VALUES (%s, %s, %s, %s, %s)"
         cursor.execute(sql, (username, password, chaptername, title, json_string))
         
@@ -99,7 +105,7 @@ def receive_post():
         return jsonify({"success": False, "message": f"데이터베이스 저장 실패: {e}"}), 500
     finally:
         if connection:
-            connection.close()  # 자원 반환 (Pool 리턴)
+            connection.close()
 
 
 @app.route('/post', methods=['GET']) 
@@ -114,7 +120,6 @@ def submit_post():
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
 
-        # 🐬 NULL 유입 크래시 방지 및 인덱싱 활용 고속 쿼리 실행
         sql = """
             SELECT 
                 id, 
@@ -144,7 +149,8 @@ if __name__ == '__main__':
     try:
         init_db()
     except Exception as e:
-        print(f"⚠️ [인프라 구동 경고] 초기 DB 연결에 실패했으나, 서버 기동을 강제 유지합니다: {e}")
+        print(f"⚠️ 초기 DB 연결 실패, 서버 기동 유지: {e}")
         
-    # ⚠️ 대규모 배포 모드로 갈 때는 debug=False로 두고, WSGI 컨테이너(Gunicorn 등)로 감싸 기동하게 됩니다.
-    app.run(host='0.0.0.0', port=5119, debug=False, threaded=True)
+    # Render 환경용 동적 포트 바인딩 안정화
+    port = int(os.environ.get("PORT", 5119))
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
