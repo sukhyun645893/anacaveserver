@@ -3,6 +3,7 @@ from flask_cors import CORS
 import mysql.connector
 from mysql.connector import pooling  # 🐬 대규모 커넥션 풀링 엔진 장착
 import os
+import traceback
 
 app = Flask(__name__)
 CORS(app)  # 🛡️ 플러터 앱 통신 개방
@@ -73,6 +74,17 @@ def init_db():
     finally:
         if conn:
             conn.close()
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        conn = get_db_connection()
+        conn.close()
+        return jsonify({"success": True, "message": "DB 연결 성공"}), 200
+    except Exception as e:
+        print(f"❌ [Health Check DB 에러]: {e}", flush=True)
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 503
 
 
 @app.route('/post', methods=['POST'])
